@@ -1,0 +1,4 @@
+aiogram==3.23.0
+aiosqlite==0.22.1
+python-dotenv==1.2.1
+aiohttp-socks==2.8.0
