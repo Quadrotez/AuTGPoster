@@ -20,7 +20,7 @@ class InitUserMiddleware(BaseMiddleware):
             user = models.User(event.chat.id)
 
             if not await user.exists() and (int(os.environ["WHITELIST"]) and event.text != os.environ["WHITELIST_PASSWORD"]):
-                    await event.answer("В боте включён WhiteList! Для работы с ботом введите пароль или обратитесь к администратору")
+                    await event.answer(await user.get_message("you_are_not_whitelisted_notification"))
             else:
                 return await handler(event, data)
                 

@@ -1,7 +1,13 @@
+import os
+
 from aiogram import types
 
-from database import db
+from dotenv import load_dotenv
 
+from database import db
+from utils import languages
+
+load_dotenv()
 
 class User:
     def __init__(self, chat_id: int):
@@ -22,3 +28,12 @@ class User:
         """,
             (self.chat_id,),
         )
+
+    async def get_message(self, message: str) -> str:
+        if not await self.exists():
+            self.language = os.environ["DEFAULT_LANGUAGE"]
+        else:
+            self.language = str(await db.execute("SELECT LANGUAGE FROM USERS WHERE CHAT_ID = ?",
+                                    (self.chat_id,), fetch=True))
+        return languages.get_message(self.language, message)
+    

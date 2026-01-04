@@ -13,8 +13,9 @@ async def init_database():
         await db.execute(
             """CREATE TABLE IF NOT EXISTS USERS (
             CHAT_ID INT PRIMARY KEY, 
-            ROLE TEXT DEFAULT USER
-            )"""
+            ROLE TEXT DEFAULT USER,
+            LANGUAGE TEXT DEFAULT {}
+            )""".format(os.environ["DEFAULT_LANGUAGE"])
         )
         await db.execute("""CREATE TABLE IF NOT EXISTS CHANNELS (
         CHAT_ID INT PRIMARY KEY, 

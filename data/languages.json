@@ -1,0 +1,12 @@
+{
+    "ru": {
+        "start": "Добро пожаловать в AuTGPoster! Выберите язык",
+        "you_are_not_whitelisted_notification": "В боте включён WhiteList! Для работы с ботом введите пароль или обратитесь к администратору",
+        "whitelist_password_entered": "Был введён пароль WhiteList! Добро пожаловать!"
+    },
+    "en": {
+        "start": "Welcome to AuTGPoster! Select your language",
+        "you_are_not_whitelisted_notification": "The bot has WhiteList enabled! To use the bot, enter your password or contact the administrator",
+        "whitelist_password_entered": "The WhiteList password has been entered! Welcome!"
+    }
+}
