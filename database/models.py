@@ -37,3 +37,7 @@ class User:
                                     (self.chat_id,), fetch=True))
         return languages.get_message(self.language, message)
     
+    async def set_value(self, key: str, value: any):
+        await db.execute(f"UPDATE USERS SET {key}=? WHERE CHAT_ID = ?",
+        (value, self.chat_id))
+        

@@ -27,6 +27,7 @@ async def main():
     print(datetime.now().strftime(r"Текущая дата: %d.%m.%Y"))
 
     dp.message.middleware(default_middlewares.InitUserMiddleware())
+    dp.callback_query.middleware(default_middlewares.InitUserMiddleware())
     dp.include_routers(client.router)
 
     await dp.start_polling(bot)

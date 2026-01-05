@@ -16,13 +16,12 @@ class InitUserMiddleware(BaseMiddleware):
         event: Message | CallbackQuery,
         data: Dict[str, Any]
     ) -> Any:
-        if event.text:
-            user = models.User(event.chat.id)
-
-            if not await user.exists() and (int(os.environ["WHITELIST"]) and event.text != os.environ["WHITELIST_PASSWORD"]):
-                    await event.answer(await user.get_message("you_are_not_whitelisted_notification"))
-            else:
-                return await handler(event, data)
+        user = models.User(event.from_user.id)
+        
+        if not await user.exists() and (int(os.environ["WHITELIST"]) and (type(event) is not Message or event.text != os.environ["WHITELIST_PASSWORD"])):
+            await event.answer(await user.get_message("you_are_not_whitelisted_notification"))
+        else:
+            return await handler(event, data)
                 
 
                 
