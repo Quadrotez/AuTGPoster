@@ -1,13 +1,18 @@
 {
     "ru": {
-        "start": "Добро пожаловать в AuTGPoster! Выберите язык",
+        "first_start": "Добро пожаловать в AuTGPoster! Выберите язык",
+        "start": "Добро пожаловать в AuTGPoster!\nЭтот бот - меню для управлением публикацией постов в Вашем канале и его модерированием\nДля навигации используйте клавиатуру, которая должна была появиться внизу",
         "you_are_not_whitelisted_notification": "В боте включён WhiteList! Для работы с ботом введите пароль или обратитесь к администратору",
         "whitelist_password_entered": "Был введён пароль WhiteList! Добро пожаловать!",
-        "lang_selected": "Язык был успешно выбран!"
+        "lang_selected": "Язык был успешно выбран!",
+        "channels": "Каналы",
+        "your_channels": "Ваши каналы:",
+        "you_do_not_have_any_channels": "У вас пока нет каналов. Нажмите на кнопку ниже, чтобы добавить",
+        "enter_data_to_add_channel": "Введите CHAT ID канала (помните, что сначала нужно добавить меня в него и выдать права администратора)",
+        "bot_is_not_available_in_the_channel": "Бота нету в канале! Добавьте его и выдайте ему права администратора!",
+        "channel_has_been_added": "Канал успешно был добавлен!"
     },
     "en": {
-        "start": "Welcome to AuTGPoster! Select your language",
-        "you_are_not_whitelisted_notification": "The bot has WhiteList enabled! To use the bot, enter your password or contact the administrator",
-        "whitelist_password_entered": "The WhiteList password has been entered! Welcome!"
+        
     }
 }

@@ -2,6 +2,7 @@ import os
 
 from aiogram import types
 
+import json
 from dotenv import load_dotenv
 
 from database import db
@@ -30,7 +31,7 @@ class User:
         )
 
     async def get_message(self, message: str) -> str:
-        if not await self.exists():
+        if not await self.exists() or not await self.get("LANGUAGE"):
             self.language = os.environ["DEFAULT_LANGUAGE"]
         else:
             self.language = str(await db.execute("SELECT LANGUAGE FROM USERS WHERE CHAT_ID = ?",
@@ -39,5 +40,32 @@ class User:
     
     async def set_value(self, key: str, value: any):
         await db.execute(f"UPDATE USERS SET {key}=? WHERE CHAT_ID = ?",
+        (value, self.chat_id))
+        
+
+    async def get(self, key: str):
+        return await db.execute(f"SELECT {key} FROM USERS WHERE CHAT_ID = ?", (self.chat_id,), fetch=True)
+
+
+class Channels:
+    def __init__(self, chat_id: str | int | None = None):
+        self.chat_id = chat_id
+
+
+    async def get(self):
+        return await db.execute("SELECT ADMINS_ID FROM CHANNELS", fetch=True)
+
+class Channel:
+    def __init__(self, chat_id: str | int) -> None:
+        self.chat_id = chat_id
+
+
+    async def init(self, admins_id):
+        await db.execute("INSERT INTO CHANNELS (CHAT_ID, ADMINS_ID) VALUES (?, ?)", 
+        (self.chat_id, json.dumps(list(admins_id))))
+
+
+    async def set_value(self, key: str, value: any):
+        await db.execute(f"UPDATE CHANNELS SET {key}=? WHERE CHAT_ID = ?",
         (value, self.chat_id))
         
