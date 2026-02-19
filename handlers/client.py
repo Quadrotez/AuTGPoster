@@ -10,13 +10,15 @@ from aiogram.exceptions import TelegramBadRequest
 from dotenv import load_dotenv
 
 from database import models
+from utils import aiogram_utils
 
 from filters.bot_filters import (
     CallbackCommandFilter,
     WhitelistFilter,
     KeyboardCommandFilter,
-    UserWhitelistedFilter
+    UserWhitelistedFilter,
 )
+
 
 load_dotenv()
 
@@ -48,7 +50,11 @@ async def h_start(message: types.Message):
         await message.answer(await user.get_message("start"), reply_markup=keyboard)
 
 
-@router.message(WhitelistFilter(), ~UserWhitelistedFilter(), F.text == os.environ["WHITELIST_PASSWORD"])
+@router.message(
+    WhitelistFilter(),
+    ~UserWhitelistedFilter(),
+    F.text == os.environ["WHITELIST_PASSWORD"],
+)
 async def h_whitelist_password_entered(message: types.Message):
     user = models.User(message.chat.id)
     await message.answer(await user.get_message("whitelist_password_entered"))
@@ -62,12 +68,28 @@ async def h_channels(message: types.Message):
 
     user = models.User(message.chat.id)
 
-    builder.button(text="Добавить", callback_data="ADD_CHANNEL")
+    channels = models.Channels(message.chat.id)
 
+    builder.button(text="Добавить", callback_data="ADD_CHANNEL")
+    
+
+    if not channels:
+        await message.answer(
+            await user.get_message("you_do_not_have_any_channels"),
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    for channel_id in await channels.get():
+        channel = models.Channel(channel_id)
+        builder.button(
+            text=str(await channel.get("CHANNEL_NAME")),
+            callback_data=f"MANAGE_CHANNEL {channel_id}",
+        )
     await message.answer(
-        await user.get_message("you_do_not_have_any_channels"),
-        reply_markup=builder.as_markup(),
-    )
+            await user.get_message("your_channels"),
+            reply_markup=builder.as_markup(),
+        )
 
 
 @router.message(Form.state_entering_channel_data)
@@ -82,18 +104,23 @@ async def entering_channel_data(message: types.Message, state: FSMContext):
             channel_id = message.text
         try:
             bot_member = await message.bot.get_chat_member(
-                chat_id=channel_id, 
-                user_id=message.bot.id
+                chat_id=channel_id, user_id=message.bot.id
             )
             if bot_member.status == "administrator":
                 channel = models.Channel(channel_id)
                 admins = await message.bot.get_chat_administrators(chat_id=channel_id)
-                await channel.init(set([admin.user.id for admin in admins]) - set([message.bot.id]))
 
+                await channel.init(
+                    set([admin.user.id for admin in admins]) - set([message.bot.id]),
+                    await aiogram_utils.get_channel_owner(message.bot, channel_id),
+                    (await message.bot.get_chat(channel_id)).title,
+                )
                 await message.answer(await user.get_message("channel_has_been_added"))
 
         except TelegramBadRequest:
-            await message.answer(await user.get_message("bot_is_not_available_in_the_channel"))
+            await message.answer(
+                await user.get_message("bot_is_not_available_in_the_channel")
+            )
 
     await state.clear()
 
