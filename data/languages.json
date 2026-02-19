@@ -10,7 +10,13 @@
         "you_do_not_have_any_channels": "У вас пока нет каналов. Нажмите на кнопку ниже, чтобы добавить",
         "enter_data_to_add_channel": "Введите CHAT ID канала (помните, что сначала нужно добавить меня в него и выдать права администратора)",
         "bot_is_not_available_in_the_channel": "Бота нету в канале! Добавьте его и выдайте ему права администратора!",
-        "channel_has_been_added": "Канал успешно был добавлен!"
+        "channel_has_been_added": "Канал успешно был добавлен!",
+        "enter_what_you_want_to_change_in_your_channel": "Выберите, что Вы хотите изменить в своём канале:",
+        "posts_settings": "Настройка постов",
+        "posts_settings_menu": "Выберите, что вы хотите настроить у постов:",
+        "set_schedule": "Настройка расписания",
+        "enter_schedule_data": "Введите расписание: ",
+        "schedule_was_edited": "Расписание было успешно обновлено!"
     },
     "en": {
         

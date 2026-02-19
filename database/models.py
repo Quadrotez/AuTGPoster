@@ -67,13 +67,12 @@ class Channels:
         return admin_channels
 
 class Channel:
-    def __init__(self, chat_id: str | int) -> None:
-        self.chat_id = chat_id
+    def __init__(self, channel_id: str | int) -> None:
+        self.chat_id = channel_id
 
     async def init(self, admins_id, owner_id, channel_name):
         await db.execute("INSERT INTO CHANNELS (CHAT_ID, ADMINS_IDES, OWNER_ID, CHANNEL_NAME) VALUES (?, ?, ?, ?)", 
         (self.chat_id, json.dumps(list(admins_id)), owner_id, channel_name))
-
 
     async def set_value(self, key: str, value: any):
         await db.execute(f"UPDATE CHANNELS SET {key}=? WHERE CHAT_ID = ?",

@@ -19,9 +19,10 @@ async def init_database():
         
         await db.execute("""CREATE TABLE IF NOT EXISTS CHANNELS (
         CHAT_ID INT PRIMARY KEY, 
-        ADMINS_IDES JSON DEFAULT [],
+        ADMINS_IDES JSON DEFAULT '[]',
         OWNER_ID INT,
-        CHANNEL_NAME TEXT
+        CHANNEL_NAME TEXT,
+        SCHEDULE_DATA JSON DEFAULT '{}'
         )""")
         await db.close()
 
