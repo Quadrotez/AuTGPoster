@@ -51,9 +51,8 @@ class Channels:
     def __init__(self, chat_id: str | int | None = None):
         self.chat_id = chat_id
 
-
     async def get(self):
-        return await db.execute("SELECT ADMINS_ID FROM CHANNELS", fetch=True)
+        return await db.execute("SELECT CHAT_ID FROM CHANNELS", fetch=True)
 
 class Channel:
     def __init__(self, chat_id: str | int) -> None:

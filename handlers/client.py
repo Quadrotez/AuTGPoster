@@ -89,16 +89,11 @@ async def entering_channel_data(message: types.Message, state: FSMContext):
                 channel = models.Channel(channel_id)
                 admins = await message.bot.get_chat_administrators(chat_id=channel_id)
                 await channel.init(set([admin.user.id for admin in admins]) - set([message.bot.id]))
-                
-                
 
                 await message.answer(await user.get_message("channel_has_been_added"))
 
         except TelegramBadRequest:
             await message.answer(await user.get_message("bot_is_not_available_in_the_channel"))
-
-        
-        
 
     await state.clear()
 
