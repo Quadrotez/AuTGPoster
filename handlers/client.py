@@ -99,7 +99,7 @@ async def h_entering_channel_data(message: types.Message, state: FSMContext):
     user = models.User(message.chat.id)
     if message.forward_from:
         print("Короче это пересланное соо")
-    elif message.text.isnumeric():
+    elif message.text.lstrip('-').isnumeric()():
         if not message.text.startswith("-100"):
             channel_id = f"-100{message.text}"
         else:
