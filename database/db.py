@@ -14,8 +14,14 @@ async def init_database():
             """CREATE TABLE IF NOT EXISTS USERS (
             CHAT_ID INT PRIMARY KEY, 
             ROLE TEXT DEFAULT USER,
-            LANGUAGE TEXT
+            LANGUAGE TEXT,
+            TIMEZONE INT DEFAULT 0
             )""")
+
+        try:
+            await db.execute("ALTER TABLE USERS ADD COLUMN TIMEZONE INT DEFAULT 0")
+        except Exception:
+            pass
         
         await db.execute("""CREATE TABLE IF NOT EXISTS CHANNELS (
         CHAT_ID INT PRIMARY KEY, 
@@ -23,6 +29,13 @@ async def init_database():
         OWNER_ID INT,
         CHANNEL_NAME TEXT,
         SCHEDULE_DATA JSON DEFAULT '{}'
+        )""")
+
+        await db.execute("""CREATE TABLE IF NOT EXISTS POSTS_QUEUE (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CHANNEL_ID INT,
+        FROM_CHAT_ID INT,
+        MESSAGE_ID INT
         )""")
         await db.close()
 

@@ -15,8 +15,21 @@
         "posts_settings": "Настройка постов",
         "posts_settings_menu": "Выберите, что вы хотите настроить у постов:",
         "set_schedule": "Настройка расписания",
-        "enter_schedule_data": "Введите расписание: ",
-        "schedule_was_edited": "Расписание было успешно обновлено!"
+        "enter_schedule_data": "Введите расписание в формате JSON.\n\nПример:\n<pre>{\n    \"monday\": [\"09:00\", \"18:00\"],\n    \"tuesday\": [\"12:00\"],\n    \"wednesday\": [],\n    \"thursday\": [\"09:00\", \"18:00\"],\n    \"friday\": [\"20:00\"],\n    \"saturday\": [\"10:00\"],\n    \"sunday\": []\n}</pre>\n\nДни недели: monday, tuesday, wednesday, thursday, friday, saturday, sunday\nВремя указывается в формате HH:MM (24-часовой). Пустой список [] означает, что в этот день постов нет.",
+        "schedule_was_edited": "Расписание было успешно обновлено!",
+        "add_channel": "➕ Добавить канал",
+        "new_post": "Новый пост",
+        "send_me_the_post": "Отправьте мне пост, который хотите опубликовать",
+        "choose_post_action": "Выберите действие:",
+        "add_to_schedule": "Добавить в расписание",
+        "send_now": "Отправить сейчас",
+        "post_added_to_queue": "Пост добавлен в очередь!",
+        "post_sent": "Пост отправлен!",
+        "profile": "Профиль",
+        "profile_info": "🪪 <b>Ваш профиль</b>\n\nID: <code>{id}</code>\nЧасовой пояс: {timezone}",
+        "change_timezone": "Изменить часовой пояс",
+        "what_time_is_it_now": "Сколько у вас сейчас времени? Выберите ближайшее значение:",
+        "timezone_saved": "Часовой пояс успешно установлен: {timezone}"
     },
     "en": {
         

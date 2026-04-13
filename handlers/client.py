@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -28,6 +29,8 @@ router = Router()
 class Form(StatesGroup):
     state_entering_channel_data = State()
     state_entering_schedule_data = State()
+    state_waiting_for_post = State()
+    state_post_action = State()
     channel_id = State()
 
 
@@ -46,7 +49,10 @@ async def h_start(message: types.Message):
     else:
         keyboard = types.ReplyKeyboardMarkup(
             resize_keyboard=True,
-            keyboard=[[types.KeyboardButton(text=await user.get_message("channels"))]],
+            keyboard=[
+                [types.KeyboardButton(text=await user.get_message("channels"))],
+                [types.KeyboardButton(text=await user.get_message("profile"))],
+            ],
         )
 
         await message.answer(await user.get_message("start"), reply_markup=keyboard)
@@ -72,10 +78,9 @@ async def h_channels(message: types.Message):
 
     channels = models.Channels(message.chat.id)
 
-    builder.button(text="Добавить", callback_data="ADD_CHANNEL")
-    
-
-    if not channels:
+    if not await channels.get():
+        builder.button(text=await user.get_message("add_channel"), callback_data="ADD_CHANNEL")
+        builder.adjust(1)
         await message.answer(
             await user.get_message("you_do_not_have_any_channels"),
             reply_markup=builder.as_markup(),
@@ -88,10 +93,14 @@ async def h_channels(message: types.Message):
             text=str(await channel.get("CHANNEL_NAME")),
             callback_data=f"MANAGE_CHANNEL {channel_id}",
         )
+
+    builder.button(text=await user.get_message("add_channel"), callback_data="ADD_CHANNEL")
+    builder.adjust(1)
+
     await message.answer(
-            await user.get_message("your_channels"),
-            reply_markup=builder.as_markup(),
-        )
+        await user.get_message("your_channels"),
+        reply_markup=builder.as_markup(),
+    )
 
 
 @router.message(Form.state_entering_channel_data)
@@ -135,6 +144,7 @@ async def h_entering_schedule_data(message: types.Message, state: FSMContext):
     channel = models.Channel(channel_id=channel_id)
 
     await channel.set_value("SCHEDULE_DATA", message.text)
+    await state.clear()
     await message.answer(await user.get_message("schedule_was_edited"))
 
 
@@ -162,8 +172,61 @@ async def h_manage_channel(data: types.CallbackQuery):
     
     builder = InlineKeyboardBuilder()
     builder.button(text=await user.get_message("posts_settings"), callback_data=f"POSTS_SETTINGS {channel_id}")
+    builder.button(text=await user.get_message("new_post"), callback_data=f"NEW_POST {channel_id}")
+    builder.adjust(1)
 
     await data.message.answer(await user.get_message("enter_what_you_want_to_change_in_your_channel"), reply_markup=builder.as_markup())
+
+
+@router.callback_query(CallbackCommandFilter("NEW_POST"))
+async def h_new_post(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    channel_id = data.data.split()[1]
+
+    await state.set_data({"channel_id": channel_id})
+    await state.set_state(Form.state_waiting_for_post)
+    await data.message.answer(await user.get_message("send_me_the_post"))
+
+
+@router.message(Form.state_waiting_for_post)
+async def h_waiting_for_post(message: types.Message, state: FSMContext):
+    user = models.User(message.chat.id)
+    data = await state.get_data()
+    channel_id = data["channel_id"]
+
+    await state.update_data(from_chat_id=message.chat.id, message_id=message.message_id)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=await user.get_message("add_to_schedule"), callback_data=f"POST_TO_SCHEDULE {channel_id}")
+    builder.button(text=await user.get_message("send_now"), callback_data=f"POST_NOW {channel_id}")
+    builder.adjust(1)
+
+    await message.answer(await user.get_message("choose_post_action"), reply_markup=builder.as_markup())
+    await state.set_state(Form.state_post_action)
+
+
+@router.callback_query(Form.state_post_action, CallbackCommandFilter("POST_NOW"))
+async def h_post_now(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    state_data = await state.get_data()
+    channel_id = data.data.split()[1]
+
+    await data.bot.copy_message(chat_id=channel_id, from_chat_id=state_data["from_chat_id"], message_id=state_data["message_id"])
+    await data.message.answer(await user.get_message("post_sent"))
+    await state.clear()
+
+
+@router.callback_query(Form.state_post_action, CallbackCommandFilter("POST_TO_SCHEDULE"))
+async def h_post_to_schedule(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    state_data = await state.get_data()
+    channel_id = data.data.split()[1]
+
+    queue = models.PostsQueue(channel_id)
+    await queue.add(state_data["from_chat_id"], state_data["message_id"])
+
+    await data.message.answer(await user.get_message("post_added_to_queue"))
+    await state.clear()
 
 
 @router.callback_query(CallbackCommandFilter("POSTS_SETTINGS"))
@@ -183,7 +246,53 @@ async def h_schedule_settings(data: types.CallbackQuery, state: FSMContext):
     user = models.User(data.from_user.id)
     channel_id = data.data.split()[1]
 
-    await data.message.answer(await user.get_message("enter_schedule_data"))
+    await data.message.answer(await user.get_message("enter_schedule_data"), parse_mode="HTML")
     await state.set_data({"channel_id": channel_id})
     await state.set_state(Form.state_entering_schedule_data)
+
+
+@router.message(KeyboardCommandFilter("profile"))
+async def h_profile(message: types.Message):
+    user = models.User(message.chat.id)
+
+    tz_offset = await user.get("TIMEZONE") or 0
+    tz_label = f"UTC+{tz_offset}" if int(tz_offset) >= 0 else f"UTC{tz_offset}"
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text=await user.get_message("change_timezone"), callback_data="CHANGE_TIMEZONE")
+
+    await message.answer(
+        (await user.get_message("profile_info")).format(id=message.chat.id, timezone=tz_label),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(CallbackCommandFilter("CHANGE_TIMEZONE"))
+async def h_change_timezone(data: types.CallbackQuery):
+    user = models.User(data.from_user.id)
+
+    from datetime import timezone as tz, timedelta
+    utc_now = datetime.now(tz.utc)
+
+    builder = InlineKeyboardBuilder()
+    offset = -12.0
+    while offset < 12.0:
+        local_time = utc_now + timedelta(hours=offset)
+        builder.button(text=local_time.strftime("%H:%M"), callback_data=f"TZ_SELECT {offset}")
+        offset += 0.5
+    builder.adjust(6)
+
+    await data.message.answer(await user.get_message("what_time_is_it_now"), reply_markup=builder.as_markup())
+
+
+@router.callback_query(CallbackCommandFilter("TZ_SELECT"))
+async def h_tz_selected(data: types.CallbackQuery):
+    user = models.User(data.from_user.id)
+
+    offset = float(data.data.split()[1])
+    await user.set_value("TIMEZONE", offset)
+
+    tz_label = f"UTC+{offset}" if offset >= 0 else f"UTC{offset}"
+    await data.message.answer((await user.get_message("timezone_saved")).format(timezone=tz_label))
     
