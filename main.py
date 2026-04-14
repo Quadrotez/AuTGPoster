@@ -9,6 +9,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from database import db, models
 from middlewares import default_middlewares
 from handlers import client
+from utils import aiogram_utils
 
 from aiogram import Bot, Dispatcher
 
@@ -27,6 +28,7 @@ async def run_scheduler():
         await asyncio.sleep(60)
 
         utc_now = datetime.now(timezone.utc)
+        now_iso = utc_now.strftime("%Y-%m-%dT%H:%M:00")
 
         channels = await db.execute("SELECT CHAT_ID FROM CHANNELS", fetch=True, force_list=True)
 
@@ -58,9 +60,42 @@ async def run_scheduler():
             if not post:
                 continue
 
-            post_id, from_chat_id, message_id = post
-            await bot.copy_message(chat_id=channel_id, from_chat_id=from_chat_id, message_id=message_id)
+            post_id, from_chat_id, message_id, pin, unpin_at, delete_at, buttons = post
+            await aiogram_utils.send_post(bot, channel_id, from_chat_id, message_id, bool(pin), unpin_at, delete_at, buttons)
             await queue.remove(post_id)
+
+        unpin_ids = await db.execute(
+            "SELECT ID FROM SENT_POSTS WHERE UNPIN_AT IS NOT NULL AND UNPIN_AT <= ?",
+            (now_iso,), fetch=True, force_list=True
+        )
+        for post_id in unpin_ids:
+            post_data = await db.execute("SELECT CHANNEL_ID, MESSAGE_ID FROM SENT_POSTS WHERE ID = ?", (post_id,), fetch=True)
+            if not post_data:
+                continue
+            ch_id, msg_id = post_data
+            try:
+                await bot.unpin_chat_message(chat_id=ch_id, message_id=msg_id)
+            except Exception:
+                pass
+            await db.execute("UPDATE SENT_POSTS SET UNPIN_AT = NULL WHERE ID = ?", (post_id,))
+            has_delete = await db.execute("SELECT DELETE_AT FROM SENT_POSTS WHERE ID = ?", (post_id,), fetch=True)
+            if not has_delete:
+                await db.execute("DELETE FROM SENT_POSTS WHERE ID = ?", (post_id,))
+
+        delete_ids = await db.execute(
+            "SELECT ID FROM SENT_POSTS WHERE DELETE_AT IS NOT NULL AND DELETE_AT <= ?",
+            (now_iso,), fetch=True, force_list=True
+        )
+        for post_id in delete_ids:
+            post_data = await db.execute("SELECT CHANNEL_ID, MESSAGE_ID FROM SENT_POSTS WHERE ID = ?", (post_id,), fetch=True)
+            if not post_data:
+                continue
+            ch_id, msg_id = post_data
+            try:
+                await bot.delete_message(chat_id=ch_id, message_id=msg_id)
+            except Exception:
+                pass
+            await db.execute("DELETE FROM SENT_POSTS WHERE ID = ?", (post_id,))
 
 
 async def main():

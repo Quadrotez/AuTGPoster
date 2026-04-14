@@ -35,8 +35,28 @@ async def init_database():
         ID INTEGER PRIMARY KEY AUTOINCREMENT,
         CHANNEL_ID INT,
         FROM_CHAT_ID INT,
-        MESSAGE_ID INT
+        MESSAGE_ID INT,
+        PIN INT DEFAULT 0,
+        UNPIN_AT TEXT,
+        DELETE_AT TEXT,
+        BUTTONS TEXT
         )""")
+
+        for col in ["PIN INT DEFAULT 0", "UNPIN_AT TEXT", "DELETE_AT TEXT", "BUTTONS TEXT"]:
+            try:
+                await db.execute(f"ALTER TABLE POSTS_QUEUE ADD COLUMN {col}")
+            except Exception:
+                pass
+
+        await db.execute("""CREATE TABLE IF NOT EXISTS SENT_POSTS (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        CHANNEL_ID INT,
+        MESSAGE_ID INT,
+        UNPIN_AT TEXT,
+        DELETE_AT TEXT
+        )""")
+
+        await db.commit()
         await db.close()
 
 

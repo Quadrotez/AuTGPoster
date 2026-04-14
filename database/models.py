@@ -86,18 +86,29 @@ class PostsQueue:
     def __init__(self, channel_id: str | int) -> None:
         self.channel_id = channel_id
 
-    async def add(self, from_chat_id: int, message_id: int):
+    async def add(self, from_chat_id: int, message_id: int, pin: bool = False,
+                  unpin_at: str | None = None, delete_at: str | None = None,
+                  buttons: str | None = None):
         await db.execute(
-            "INSERT INTO POSTS_QUEUE (CHANNEL_ID, FROM_CHAT_ID, MESSAGE_ID) VALUES (?, ?, ?)",
-            (self.channel_id, from_chat_id, message_id)
+            "INSERT INTO POSTS_QUEUE (CHANNEL_ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (self.channel_id, from_chat_id, message_id, int(pin), unpin_at, delete_at, buttons)
         )
 
     async def get_next(self):
         return await db.execute(
-            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID FROM POSTS_QUEUE WHERE CHANNEL_ID = ? ORDER BY ID LIMIT 1",
+            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS FROM POSTS_QUEUE WHERE CHANNEL_ID = ? ORDER BY ID LIMIT 1",
             (self.channel_id,), fetch=True
         )
 
     async def remove(self, post_id: int):
         await db.execute("DELETE FROM POSTS_QUEUE WHERE ID = ?", (post_id,))
+
+
+class SentPost:
+    @staticmethod
+    async def add(channel_id: int, message_id: int, unpin_at: str | None, delete_at: str | None):
+        await db.execute(
+            "INSERT INTO SENT_POSTS (CHANNEL_ID, MESSAGE_ID, UNPIN_AT, DELETE_AT) VALUES (?, ?, ?, ?)",
+            (channel_id, message_id, unpin_at, delete_at)
+        )
         
