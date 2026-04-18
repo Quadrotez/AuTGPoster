@@ -71,6 +71,7 @@ async def h_start(message: types.Message):
     if not await user.get("LANGUAGE"):
         builder.button(text="Ru", callback_data="LANG ru")
         builder.button(text="En", callback_data="LANG en")
+        builder.button(text="Es", callback_data="LANG es")
 
         await message.answer(
             await user.get_message("first_start"), reply_markup=builder.as_markup()
@@ -137,7 +138,7 @@ async def h_entering_channel_data(message: types.Message, state: FSMContext):
     user = models.User(message.chat.id)
     if message.forward_from:
         print("Короче это пересланное соо")
-    elif message.text.lstrip('-').isnumeric()():
+    elif message.text.lstrip('-').isnumeric():
         if not message.text.startswith("-100"):
             channel_id = f"-100{message.text}"
         else:
@@ -461,6 +462,8 @@ async def h_profile(message: types.Message):
 
     builder = InlineKeyboardBuilder()
     builder.button(text=await user.get_message("change_timezone"), callback_data="CHANGE_TIMEZONE")
+    builder.button(text=await user.get_message("change_language"), callback_data="CHANGE_LANGUAGE")
+    builder.adjust(1)
 
     await message.answer(
         (await user.get_message("profile_info")).format(id=message.chat.id, timezone=tz_label),
@@ -485,6 +488,19 @@ async def h_change_timezone(data: types.CallbackQuery):
     builder.adjust(6)
 
     await data.message.answer(await user.get_message("what_time_is_it_now"), reply_markup=builder.as_markup())
+
+
+@router.callback_query(CallbackCommandFilter("CHANGE_LANGUAGE"))
+async def h_change_language(data: types.CallbackQuery):
+    user = models.User(data.from_user.id)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🇷🇺 Русский", callback_data="LANG ru")
+    builder.button(text="🇬🇧 English", callback_data="LANG en")
+    builder.button(text="🇪🇸 Español", callback_data="LANG es")
+    builder.adjust(1)
+
+    await data.message.answer(await user.get_message("first_start"), reply_markup=builder.as_markup())
 
 
 @router.callback_query(CallbackCommandFilter("TZ_SELECT"))
