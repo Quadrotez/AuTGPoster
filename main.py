@@ -36,33 +36,35 @@ async def run_scheduler():
             channel = models.Channel(channel_id)
             schedule_data = await channel.get("SCHEDULE_DATA")
 
-            if not schedule_data or schedule_data == "{}":
-                continue
+            if schedule_data and schedule_data != "{}":
+                try:
+                    schedule = json.loads(schedule_data)
+                except (json.JSONDecodeError, TypeError):
+                    schedule = {}
 
-            try:
-                schedule = json.loads(schedule_data)
-            except (json.JSONDecodeError, TypeError):
-                continue
+                if schedule:
+                    owner_id = await channel.get("OWNER_ID")
+                    tz_offset = await db.execute("SELECT TIMEZONE FROM USERS WHERE CHAT_ID = ?", (owner_id,), fetch=True) or 0
+                    local_now = utc_now + timedelta(hours=float(tz_offset))
 
-            owner_id = await channel.get("OWNER_ID")
-            tz_offset = await db.execute("SELECT TIMEZONE FROM USERS WHERE CHAT_ID = ?", (owner_id,), fetch=True) or 0
-            local_now = utc_now + timedelta(hours=float(tz_offset))
+                    weekday = local_now.strftime("%A").lower()
+                    current_time = local_now.strftime("%H:%M")
 
-            weekday = local_now.strftime("%A").lower()
-            current_time = local_now.strftime("%H:%M")
+                    if current_time in schedule.get(weekday, []):
+                        queue = models.PostsQueue(channel_id)
+                        post = await queue.get_next()
 
-            if current_time not in schedule.get(weekday, []):
-                continue
+                        if post:
+                            post_id, from_chat_id, message_id, pin, unpin_at, delete_at, buttons = post
+                            await aiogram_utils.send_post(bot, channel_id, from_chat_id, message_id, bool(pin), unpin_at, delete_at, buttons)
+                            await queue.remove(post_id)
 
             queue = models.PostsQueue(channel_id)
-            post = await queue.get_next()
-
-            if not post:
-                continue
-
-            post_id, from_chat_id, message_id, pin, unpin_at, delete_at, buttons = post
-            await aiogram_utils.send_post(bot, channel_id, from_chat_id, message_id, bool(pin), unpin_at, delete_at, buttons)
-            await queue.remove(post_id)
+            due_post = await queue.get_due(now_iso)
+            if due_post:
+                post_id, from_chat_id, message_id, pin, unpin_at, delete_at, buttons = due_post
+                await aiogram_utils.send_post(bot, channel_id, from_chat_id, message_id, bool(pin), unpin_at, delete_at, buttons)
+                await queue.remove(post_id)
 
         unpin_ids = await db.execute(
             "SELECT ID FROM SENT_POSTS WHERE UNPIN_AT IS NOT NULL AND UNPIN_AT <= ?",

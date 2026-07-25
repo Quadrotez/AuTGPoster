@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+import calendar
+from datetime import datetime, timedelta, timezone as tz
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -35,6 +36,8 @@ class Form(StatesGroup):
     state_entering_delete_time = State()
     state_entering_buttons = State()
     state_choosing_publish = State()
+    state_choosing_date = State()
+    state_entering_publish_time = State()
 
 
 async def _post_settings_markup(user: models.User, data: dict) -> types.InlineKeyboardMarkup:
@@ -61,6 +64,62 @@ async def _post_settings_markup(user: models.User, data: dict) -> types.InlineKe
     builder.button(text=await user.get_message("post_next"), callback_data="POST_NEXT")
     builder.adjust(1)
     return builder.as_markup()
+
+
+MONTH_NAMES = {
+    "ru": ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+           "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"],
+    "en": ["", "January", "February", "March", "April", "May", "June",
+           "July", "August", "September", "October", "November", "December"],
+    "es": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+}
+
+
+async def _calendar_keyboard(user: models.User, year: int, month: int) -> types.InlineKeyboardMarkup:
+    language = await user.get("LANGUAGE") or os.environ.get("DEFAULT_LANGUAGE", "ru")
+    month_names = MONTH_NAMES.get(language, MONTH_NAMES["en"])
+
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+
+    buttons = []
+
+    buttons.append([
+        types.InlineKeyboardButton(text="◀", callback_data=f"CAL_PREV {prev_year} {prev_month}"),
+        types.InlineKeyboardButton(text=f"{month_names[month]} {year}", callback_data="CAL_NOP"),
+        types.InlineKeyboardButton(text="▶", callback_data=f"CAL_NEXT {next_year} {next_month}"),
+    ])
+
+    cal = calendar.monthcalendar(year, month)
+    for week in cal:
+        row = []
+        for day in week:
+            if day != 0:
+                row.append(types.InlineKeyboardButton(
+                    text=str(day), callback_data=f"CAL_DAY {year} {month} {day}"
+                ))
+        if row:
+            buttons.append(row)
+
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def _time_picker_keyboard() -> types.InlineKeyboardMarkup:
+    buttons = []
+    row = []
+    for hour in range(24):
+        row.append(types.InlineKeyboardButton(
+            text=f"{hour:02d}:00", callback_data=f"TIME_PICK {hour:02d}:00"
+        ))
+        if len(row) == 6:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 @router.message(Command("start"))
@@ -390,6 +449,7 @@ async def h_post_next(data: types.CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
     builder.button(text=await user.get_message("send_now"), callback_data=f"POST_NOW {channel_id}")
     builder.button(text=await user.get_message("add_to_schedule"), callback_data=f"POST_TO_SCHEDULE {channel_id}")
+    builder.button(text=await user.get_message("send_at_date"), callback_data=f"POST_AT_DATE {channel_id}")
     builder.adjust(1)
 
     await state.set_state(Form.state_choosing_publish)
@@ -432,6 +492,198 @@ async def h_post_to_schedule(data: types.CallbackQuery, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(Form.state_choosing_publish, CallbackCommandFilter("POST_AT_DATE"))
+async def h_post_at_date(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    channel_id = data.data.split()[1]
+
+    await state.update_data(channel_id=channel_id)
+    await state.set_state(Form.state_choosing_date)
+
+    now = datetime.now(tz.utc)
+    await user.set_value("TIMEZONE", await user.get("TIMEZONE") or 0)
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    local_now = now + timedelta(hours=tz_offset)
+
+    markup = await _calendar_keyboard(user, local_now.year, local_now.month)
+    await data.message.answer(
+        await user.get_message("select_date"), reply_markup=markup
+    )
+
+
+@router.callback_query(Form.state_choosing_date, CallbackCommandFilter("CAL_NOP"))
+async def h_cal_nop(data: types.CallbackQuery):
+    await data.answer()
+
+
+@router.callback_query(Form.state_choosing_date, CallbackCommandFilter("CAL_PREV"))
+async def h_cal_prev(data: types.CallbackQuery, state: FSMContext, user: models.User = None):
+    user = user or models.User(data.from_user.id)
+    parts = data.data.split()
+    year, month = int(parts[1]), int(parts[2])
+
+    markup = await _calendar_keyboard(user, year, month)
+    await data.message.edit_reply_markup(reply_markup=markup)
+    await data.answer()
+
+
+@router.callback_query(Form.state_choosing_date, CallbackCommandFilter("CAL_NEXT"))
+async def h_cal_next(data: types.CallbackQuery, state: FSMContext, user: models.User = None):
+    user = user or models.User(data.from_user.id)
+    parts = data.data.split()
+    year, month = int(parts[1]), int(parts[2])
+
+    markup = await _calendar_keyboard(user, year, month)
+    await data.message.edit_reply_markup(reply_markup=markup)
+    await data.answer()
+
+
+@router.callback_query(Form.state_choosing_date, CallbackCommandFilter("CAL_DAY"))
+async def h_cal_day(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    parts = data.data.split()
+    year, month, day = int(parts[1]), int(parts[2]), int(parts[3])
+
+    now = datetime.now(tz.utc)
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    local_now = now + timedelta(hours=tz_offset)
+
+    selected = datetime(year, month, day)
+    if selected.date() < local_now.date():
+        await data.answer()
+        await data.message.answer(await user.get_message("invalid_date"))
+        return
+
+    await state.update_data(publish_date=f"{day:02d}.{month:02d}.{year}")
+    await state.set_state(Form.state_entering_publish_time)
+
+    await data.answer()
+    await data.message.edit_text(
+        (await user.get_message("selected_date")).format(date=f"{day:02d}.{month:02d}.{year}"),
+        reply_markup=_time_picker_keyboard(),
+    )
+
+
+@router.message(Form.state_choosing_date)
+async def h_entering_date_text(message: types.Message, state: FSMContext):
+    user = models.User(message.chat.id)
+
+    if not message.text:
+        await message.answer(await user.get_message("invalid_date"))
+        return
+
+    try:
+        dt = datetime.strptime(message.text.strip(), "%d.%m.%Y")
+    except ValueError:
+        await message.answer(await user.get_message("invalid_date"))
+        return
+
+    now = datetime.now(tz.utc)
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    local_now = now + timedelta(hours=tz_offset)
+
+    if dt.date() < local_now.date():
+        await message.answer(await user.get_message("invalid_date"))
+        return
+
+    await state.update_data(publish_date=message.text.strip())
+    await state.set_state(Form.state_entering_publish_time)
+
+    await message.answer(
+        (await user.get_message("selected_date")).format(date=message.text.strip()),
+        reply_markup=_time_picker_keyboard(),
+    )
+
+
+@router.callback_query(Form.state_entering_publish_time, CallbackCommandFilter("TIME_PICK"))
+async def h_time_pick(data: types.CallbackQuery, state: FSMContext):
+    user = models.User(data.from_user.id)
+    text = data.data.split()[1]
+
+    state_data = await state.get_data()
+    date_str = state_data["publish_date"]
+    day, month, year = map(int, date_str.split("."))
+
+    hour, minute = map(int, text.split(":"))
+
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    local_dt = datetime(year, month, day, hour, minute)
+    utc_dt = local_dt - timedelta(hours=tz_offset)
+
+    utc_now = datetime.now(tz.utc).replace(tzinfo=None)
+    if utc_dt <= utc_now:
+        await data.answer()
+        await data.message.answer(await user.get_message("invalid_datetime"))
+        return
+
+    channel_id = state_data["channel_id"]
+    queue = models.PostsQueue(channel_id)
+    await queue.add(
+        state_data["from_chat_id"], state_data["message_id"],
+        state_data.get("pin", False),
+        state_data.get("unpin_at"),
+        state_data.get("delete_at"),
+        state_data.get("buttons"),
+        scheduled_at=utc_dt.strftime("%Y-%m-%dT%H:%M:00"),
+    )
+
+    display_dt = f"{date_str} {text}"
+    await data.answer()
+    await data.message.edit_text(
+        (await user.get_message("post_scheduled")).format(datetime=display_dt)
+    )
+    await state.clear()
+
+
+@router.message(Form.state_entering_publish_time)
+async def h_entering_publish_time(message: types.Message, state: FSMContext):
+    user = models.User(message.chat.id)
+
+    if not message.text:
+        await message.answer(await user.get_message("invalid_datetime"))
+        return
+
+    text = message.text.strip()
+    try:
+        time_parts = text.split(":")
+        hour, minute = int(time_parts[0]), int(time_parts[1])
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            raise ValueError
+    except (ValueError, IndexError):
+        await message.answer(await user.get_message("invalid_datetime"))
+        return
+
+    state_data = await state.get_data()
+    date_str = state_data["publish_date"]
+    day, month, year = map(int, date_str.split("."))
+
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    local_dt = datetime(year, month, day, hour, minute)
+    utc_dt = local_dt - timedelta(hours=tz_offset)
+
+    utc_now = datetime.now(tz.utc).replace(tzinfo=None)
+    if utc_dt <= utc_now:
+        await message.answer(await user.get_message("invalid_datetime"))
+        return
+
+    channel_id = state_data["channel_id"]
+    queue = models.PostsQueue(channel_id)
+    await queue.add(
+        state_data["from_chat_id"], state_data["message_id"],
+        state_data.get("pin", False),
+        state_data.get("unpin_at"),
+        state_data.get("delete_at"),
+        state_data.get("buttons"),
+        scheduled_at=utc_dt.strftime("%Y-%m-%dT%H:%M:00"),
+    )
+
+    display_dt = f"{date_str} {text}"
+    await message.answer(
+        (await user.get_message("post_scheduled")).format(datetime=display_dt)
+    )
+    await state.clear()
+
+
 @router.callback_query(CallbackCommandFilter("POSTS_SETTINGS"))
 async def h_posts_settings(data: types.CallbackQuery, state: FSMContext):
     user = models.User(data.from_user.id)
@@ -439,6 +691,8 @@ async def h_posts_settings(data: types.CallbackQuery, state: FSMContext):
 
     builder = InlineKeyboardBuilder()
     builder.button(text=await user.get_message("set_schedule"), callback_data=f"SCHEDULE_SETTINGS {channel_id}")
+    builder.button(text=await user.get_message("view_scheduled_posts"), callback_data=f"SCHEDULED_POSTS {channel_id}")
+    builder.adjust(1)
 
     await data.message.answer(await user.get_message("posts_settings_menu"), reply_markup=builder.as_markup())
 
@@ -451,6 +705,57 @@ async def h_schedule_settings(data: types.CallbackQuery, state: FSMContext):
     await data.message.answer(await user.get_message("enter_schedule_data"), parse_mode="HTML")
     await state.set_data({"channel_id": channel_id})
     await state.set_state(Form.state_entering_schedule_data)
+
+
+@router.callback_query(CallbackCommandFilter("SCHEDULED_POSTS"))
+async def h_scheduled_posts(data: types.CallbackQuery):
+    user = models.User(data.from_user.id)
+    channel_id = data.data.split()[1]
+    queue = models.PostsQueue(channel_id)
+    posts = await queue.get_all_scheduled()
+
+    if not posts:
+        await data.message.answer(await user.get_message("no_scheduled_posts"))
+        return
+
+    tz_offset = float(await user.get("TIMEZONE") or 0)
+    channel = models.Channel(channel_id)
+    channel_name = await channel.get("CHANNEL_NAME") or channel_id
+
+    builder = InlineKeyboardBuilder()
+    lines = []
+    for i, post in enumerate(posts, 1):
+        post_id, from_chat_id, message_id, scheduled_at = post
+        dt_utc = datetime.fromisoformat(scheduled_at)
+        dt_local = dt_utc + timedelta(hours=tz_offset)
+        date_str = dt_local.strftime("%d.%m.%Y")
+        time_str = dt_local.strftime("%H:%M")
+        lines.append(
+            (await user.get_message("scheduled_post_item")).format(
+                number=i, date=date_str, time=time_str, channel=channel_name
+            )
+        )
+        builder.button(
+            text=f"{i}. {date_str} {time_str} — {await user.get_message('delete_scheduled')}",
+            callback_data=f"SCHEDULED_DEL {channel_id} {post_id}",
+        )
+    builder.adjust(1)
+
+    text = "\n".join(lines)
+    await data.message.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(CallbackCommandFilter("SCHEDULED_DEL"))
+async def h_scheduled_delete(data: types.CallbackQuery):
+    user = models.User(data.from_user.id)
+    parts = data.data.split()
+    channel_id = parts[1]
+    post_id = int(parts[2])
+
+    queue = models.PostsQueue(channel_id)
+    await queue.remove(post_id)
+    await data.message.answer(await user.get_message("scheduled_post_deleted"))
+    await data.answer()
 
 
 @router.message(KeyboardCommandFilter("profile"))

@@ -1,14 +1,11 @@
 import aiosqlite
 import os
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
-database_path = os.environ["DATABASE_PATH"]
+database_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "db.db")
 
 
 async def init_database():
+    os.makedirs(os.path.dirname(database_path), exist_ok=True)
     async with aiosqlite.connect(database_path) as db:
         await db.execute(
             """CREATE TABLE IF NOT EXISTS USERS (
@@ -39,10 +36,11 @@ async def init_database():
         PIN INT DEFAULT 0,
         UNPIN_AT TEXT,
         DELETE_AT TEXT,
-        BUTTONS TEXT
+        BUTTONS TEXT,
+        SCHEDULED_AT TEXT
         )""")
 
-        for col in ["PIN INT DEFAULT 0", "UNPIN_AT TEXT", "DELETE_AT TEXT", "BUTTONS TEXT"]:
+        for col in ["PIN INT DEFAULT 0", "UNPIN_AT TEXT", "DELETE_AT TEXT", "BUTTONS TEXT", "SCHEDULED_AT TEXT"]:
             try:
                 await db.execute(f"ALTER TABLE POSTS_QUEUE ADD COLUMN {col}")
             except Exception:

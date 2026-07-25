@@ -88,16 +88,28 @@ class PostsQueue:
 
     async def add(self, from_chat_id: int, message_id: int, pin: bool = False,
                   unpin_at: str | None = None, delete_at: str | None = None,
-                  buttons: str | None = None):
+                  buttons: str | None = None, scheduled_at: str | None = None):
         await db.execute(
-            "INSERT INTO POSTS_QUEUE (CHANNEL_ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (self.channel_id, from_chat_id, message_id, int(pin), unpin_at, delete_at, buttons)
+            "INSERT INTO POSTS_QUEUE (CHANNEL_ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS, SCHEDULED_AT) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (self.channel_id, from_chat_id, message_id, int(pin), unpin_at, delete_at, buttons, scheduled_at)
         )
 
     async def get_next(self):
         return await db.execute(
-            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS FROM POSTS_QUEUE WHERE CHANNEL_ID = ? ORDER BY ID LIMIT 1",
+            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS FROM POSTS_QUEUE WHERE CHANNEL_ID = ? AND SCHEDULED_AT IS NULL ORDER BY ID LIMIT 1",
             (self.channel_id,), fetch=True
+        )
+
+    async def get_due(self, now_iso: str):
+        return await db.execute(
+            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID, PIN, UNPIN_AT, DELETE_AT, BUTTONS FROM POSTS_QUEUE WHERE CHANNEL_ID = ? AND SCHEDULED_AT IS NOT NULL AND SCHEDULED_AT <= ? ORDER BY SCHEDULED_AT LIMIT 1",
+            (self.channel_id, now_iso), fetch=True
+        )
+
+    async def get_all_scheduled(self):
+        return await db.execute(
+            "SELECT ID, FROM_CHAT_ID, MESSAGE_ID, SCHEDULED_AT FROM POSTS_QUEUE WHERE CHANNEL_ID = ? AND SCHEDULED_AT IS NOT NULL ORDER BY SCHEDULED_AT",
+            (self.channel_id,), fetch=True, force_list=True
         )
 
     async def remove(self, post_id: int):
