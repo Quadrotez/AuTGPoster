@@ -125,6 +125,12 @@ def _time_picker_keyboard() -> types.InlineKeyboardMarkup:
 @router.message(Command("start"))
 async def h_start(message: types.Message):
     user = models.User(message.chat.id)
+
+    # При отключённом whitelist новый пользователь должен быть зарегистрирован
+    # до того, как callback выбора языка попытается обновить его запись.
+    if not await user.exists():
+        await user.init(message)
+
     builder = InlineKeyboardBuilder()
 
     if not await user.get("LANGUAGE"):
@@ -241,7 +247,12 @@ async def h_entering_schedule_data(message: types.Message, state: FSMContext):
 async def h_lang_selected(data: types.CallbackQuery):
     user = models.User(data.from_user.id)
 
+    # Защита для старых клавиатур и callback-запросов, пришедших до `/start`.
+    if not await user.exists():
+        await user.init(data.message)
+
     await user.set_value("LANGUAGE", data.data.split()[1])
+    await data.answer()
 
     await data.message.answer(await user.get_message("lang_selected"))
     await h_start(data.message)
